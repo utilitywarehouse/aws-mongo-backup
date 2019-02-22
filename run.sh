@@ -17,7 +17,7 @@ echo ${S3PATH}
 ##
 # Create our mongo dump or exit
 #
-mogodump --uri ${MONGO} --gzip --archive=${BACKUP_NAME} ||  echo "Failed to create mongo dump!" && exit 1
+mongodump --uri ${MONGO} --gzip --archive=${BACKUP_NAME} ||  echo "Failed to create mongo dump!" && exit 1
 ##
 # Move the backup to S3 or exit
 #
