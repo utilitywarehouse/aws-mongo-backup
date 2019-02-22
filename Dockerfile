@@ -1,6 +1,10 @@
-FROM mongo:3.6
+FROM mongo:4
 
 RUN apt-get update && apt-get -y install awscli
 
-ADD run.sh /run.sh
-CMD /run.sh
+RUN mkdir /telecom
+WORKDIR /telecom
+COPY . /telecom
+RUN chmod +x /telecom/run.sh
+
+CMD /telecom/run.sh
