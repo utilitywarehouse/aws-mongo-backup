@@ -12,6 +12,7 @@ TIMESTAMP=`date +%Y-%m-%dT%H-%M-%S`
 BACKUP_NAME="$TIMESTAMP.dump.gz"
 S3PATH="s3://$BUCKET/$BACKUP_NAME"
 
+echo ${S3PATH}
 
 ##
 # Create our mongo dump or exit
@@ -20,7 +21,7 @@ mogodump --uri ${MONGO} --gzip --archive=${BACKUP_NAME} ||  echo "Failed to crea
 ##
 # Move the backup to S3 or exit
 #
-aws s3 cp --sse AES-256 ${BACKUP_NAME} ${S3PATH} || echo "Failed to copy mongo dump to AWS S3 bucket ${S3PATH}" && exit 1
+aws s3 cp --sse AES256 ${BACKUP_NAME} ${S3PATH} || echo "Failed to copy mongo dump to AWS S3 bucket ${S3PATH}" && exit 1
 ##
 # Success
 #
