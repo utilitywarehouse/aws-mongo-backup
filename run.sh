@@ -14,12 +14,48 @@ if [[ -z "${MONGO}" ]];then
     exit 1
 fi
 
+UTIL="aws s3"
+CRYPTO="--sse AES256"
+BUCKET_PREFIX="s3"
+
+if [[ -z "${GOOGLE_CREDENTIALS_PATH}" ]];then
+
+    if [[ -z "${AWS_ACCESS_KEY_ID}" ]];then
+        echo "missing required AWS_ACCESS_KEY_ID env var"
+        exit 1
+    fi
+
+    if [[ -z "${AWS_SECRET_ACCESS_KEY}" ]];then
+        echo "missing required AWS_SECRET_ACCESS_KEY env var"
+        exit 1
+    fi
+
+    if [[ -z "${AWS_REGION}" ]];then
+        echo "missing required AWS_REGION env var"
+        exit 1
+    fi
+else
+    stat ${GOOGLE_CREDENTIALS_PATH}
+    if [[ $? -ne 0 ]];then
+        echo "invalid service account json location"
+        exit 1
+    fi
+    UTIL="gsutil"
+    CRYPTO=""
+    BUCKET_PREFIX="gs"
+    gcloud auth activate-service-account --key-file=${GOOGLE_CREDENTIALS_PATH}
+    if [[ $? -ne 0 ]];then
+        echo "unable to authenticate service account with google"
+        exit 1
+    fi
+fi
+
 
 function doBackup {
 
     TIMESTAMP=`date +%Y-%m-%dT%H-%M-%S`
     BACKUP_NAME="$TIMESTAMP.tar.gz"
-    S3PATH="s3://$BUCKET/$BACKUP_NAME"
+    BUCKET_PATH="$BUCKET_PREFIX://$BUCKET/$BACKUP_NAME"
 
     ##
     # Create our mongo dump into a timestamped directory
@@ -37,27 +73,27 @@ function doBackup {
     ##
     # Move the backup to S3 or exit
     #
-    aws s3 cp --sse AES256 ${BACKUP_NAME} ${S3PATH}
+    $UTIL cp $CRYPTO ${BACKUP_NAME} ${BUCKET_PATH}
 
     if [[ $? -ne 0 ]];then
-     echo "Failed to copy mongo dump to AWS S3 bucket ${S3PATH}"
+     echo "Failed to copy mongo dump to bucket ${BUCKET_PATH}"
         exit 1
     fi
     ##
     # Success
     #
-    echo "Successfully created backup ${BACKUP_NAME}, available at ${S3PATH}"
+    echo "Successfully created backup ${BACKUP_NAME}, available at ${BUCKET_PATH}"
 }
 
 
 function doRestore {
     BACKUP_NAME="${TIMESTAMP}.tar.gz"
-    S3PATH="s3://$BUCKET/$BACKUP_NAME"
+    BUCKET_PATH="$BUCKET_PREFIX://$BUCKET/$BACKUP_NAME"
     mkdir restore
 
-    aws s3 cp ${S3PATH} ${BACKUP_NAME}
+    $UTIL cp ${BUCKET_PATH} ${BACKUP_NAME}
     if [[ $? -ne 0 ]];then
-     echo "Failed to copy mongo dump from AWS S3 bucket ${S3PATH}"
+     echo "Failed to copy mongo dump from bucket ${BUCKET_PATH}"
         exit 1
     fi
     tar -xzvf ${BACKUP_NAME}
