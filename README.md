@@ -2,6 +2,8 @@
 
 Mongo Backup and Restore for AWS and GCP
 
+[![Docker Repository on Quay](https://quay.io/repository/utilitywarehouse/mongo-burs/status "Docker Repository on Quay")](https://quay.io/repository/utilitywarehouse/mongo-burs)
+
 ## About
 This repo contains two Docker files, one for AWS and one for GCP. Both Dockerfile will build
 a mongo image with utilities to perform a backup and restore on a mongo database. 
