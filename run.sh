@@ -60,7 +60,7 @@ function doBackup {
     ##
     # Create our mongo dump into a timestamped directory
     #
-    mongodump --uri ${MONGO} -o ${TIMESTAMP}
+    mongodump --uri ${MONGO} --readPreference secondaryPreferred -o ${TIMESTAMP}
 
     if [[ $? -ne 0 ]];then
      echo "Failed to create mongo dump!"
