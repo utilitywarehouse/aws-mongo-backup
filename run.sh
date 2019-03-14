@@ -67,10 +67,6 @@ function doBackup {
         exit 1
     fi
 
-    ##
-    # change directory to our data mount
-    #
-
     ## package up the lot into a tar.gz
     tar -zcvf ${BACKUP_NAME} ${TIMESTAMP}
     rm -rf ${TIMESTAMP}
