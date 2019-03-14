@@ -69,7 +69,7 @@ function doBackup {
 
     ## package up the lot into a tar.gz
     tar -zcvf ${BACKUP_NAME} ${TIMESTAMP}
-
+    rm -rf ${TIMESTAMP}
     ##
     # Move the backup to S3 or exit
     #
@@ -77,8 +77,11 @@ function doBackup {
 
     if [[ $? -ne 0 ]];then
      echo "Failed to copy mongo dump to bucket ${BUCKET_PATH}"
+        rm ${BACKUP_NAME}
         exit 1
     fi
+
+    rm ${BACKUP_NAME}
     ##
     # Success
     #
@@ -89,7 +92,7 @@ function doBackup {
 function doRestore {
     BACKUP_NAME="${TIMESTAMP}.tar.gz"
     BUCKET_PATH="$BUCKET_PREFIX://$BUCKET/$BACKUP_NAME"
-    mkdir restore
+    mkdir -p restore
 
     $UTIL cp ${BUCKET_PATH} ${BACKUP_NAME}
     if [[ $? -ne 0 ]];then
@@ -97,6 +100,7 @@ function doRestore {
         exit 1
     fi
     tar -xzvf ${BACKUP_NAME}
+    rm ${BACKUP_NAME}
 
     for i in $(echo ${COLLECTIONS} | sed "s/,/ /g")
     do
@@ -107,7 +111,14 @@ function doRestore {
         mv ${TIMESTAMP}/${i}.metadata.json restore/${DATABASE}
         echo ${i}
     done
+    rm -rf ${TIMESTAMP}
     mongorestore --uri ${MONGO} --dir restore
+    if [[ $? -ne 0 ]];then
+     echo "Failed to restore mongo dump ${BUCKET_PATH}"
+        rm -rf restore
+        exit 1
+    fi
+    rm -rf restore
     echo "finished restore"
 }
 

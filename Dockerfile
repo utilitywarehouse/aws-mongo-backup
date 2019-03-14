@@ -6,9 +6,10 @@ RUN echo "deb http://packages.cloud.google.com/apt cloud-sdk-$(lsb_release -c -s
 RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 RUN apt-get update && apt-get install -y google-cloud-sdk
 
-RUN mkdir /telecom
-WORKDIR /telecom
-ADD run.sh /telecom/run.sh
-RUN chmod +x /telecom/run.sh
+RUN mkdir -p /backup/data
 
-ENTRYPOINT ["/telecom/run.sh"]
+WORKDIR /backup/data
+ADD run.sh /backup/run.sh
+RUN chmod +x /backup/run.sh
+
+ENTRYPOINT ["/backup/run.sh"]

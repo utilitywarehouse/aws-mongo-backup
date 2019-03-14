@@ -9,6 +9,8 @@ This repo contains two Docker files, one for AWS and one for GCP. Both Dockerfil
 a mongo image with utilities to perform a backup and restore on a mongo database. 
 
 ## Usage
+if you have large collections it is advised you mount a PVC to the following directory `/backup/data` to avoid storage issues
+
 ### Backup
 Run the container in your environment (typically on a cron) with the configured environment variables
 
