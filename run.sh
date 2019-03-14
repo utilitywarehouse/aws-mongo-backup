@@ -60,16 +60,21 @@ function doBackup {
     ##
     # Create our mongo dump into a timestamped directory
     #
-    mongodump --uri ${MONGO} -o ${TIMESTAMP}
+    mongodump --uri ${MONGO} -o data/${TIMESTAMP}
 
     if [[ $? -ne 0 ]];then
      echo "Failed to create mongo dump!"
         exit 1
     fi
 
+    ##
+    # change directory to our data mount
+    #
+    cd data
+
     ## package up the lot into a tar.gz
     tar -zcvf ${BACKUP_NAME} ${TIMESTAMP}
-
+    rm -rf ${TIMESTAMP}
     ##
     # Move the backup to S3 or exit
     #
@@ -77,8 +82,11 @@ function doBackup {
 
     if [[ $? -ne 0 ]];then
      echo "Failed to copy mongo dump to bucket ${BUCKET_PATH}"
+        rm ${BACKUP_NAME}
         exit 1
     fi
+
+    rm ${BACKUP_NAME}
     ##
     # Success
     #
