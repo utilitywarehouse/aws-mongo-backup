@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y google-cloud-sdk
 
 RUN mkdir -p /backup/data
 
-WORKDIR /backup
+WORKDIR /backup/data
 ADD run.sh /backup/run.sh
 RUN chmod +x /backup/run.sh
 
