@@ -33,6 +33,7 @@ Run the container with the following arguments `restore $TIMESTAMP $COLLECTIONS`
 |AWS_SECRET_ACCESS_KEY|the aws secret key|[x] (AWS only)|
 |AWS_REGION|the aws region|[x] (AWS only)|
 |GOOGLE_CREDENTIALS_PATH|location of the service account JSON file|[x] GCP only|
+|COMPRESSION|compression algorithm to use, default `gzip`, other options are `xz` and `zstd`||
 
 ***Note***
 in addition to the `GOOGLE_CREDENTIALS_PATH` env var you will need to mount the credentials file into the container
