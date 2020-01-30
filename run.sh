@@ -105,9 +105,7 @@ function doBackup {
 
 
 function doRestore {
-    local archive_name="${TIMESTAMP}"
-    local backup_name=${archive_name}
-
+    local backup_name="${TIMESTAMP}"
     local algo=`echo $COMPRESSION | awk '{print tolower($0)}'`
     case $algo in
         gzip)
@@ -135,39 +133,20 @@ function doRestore {
         exit 1
     fi
 
-    if [[ -n "${COLLECTIONS}" ]]; then
-        # Decompress archive to disk - we might have multiple collections
-        algo="${algo} ${backup_name}"
-        eval $algo
-        if [[ $? -ne 0 ]]; then
-            echo "Failed to decompress archive ${backup_name}"
-            rm $archive_name
-            exit 1
-        fi
-
-        for i in $(echo ${COLLECTIONS} | sed "s/,/ /g")
-        do
-            local collection=$(echo ${i} | awk -F "/" '{print $2}')
-            mongorestore --uri ${MONGO} -c ${collection} --archive=${archive_name}
-            if [[ $? -ne 0 ]]; then
-                echo "Failed to restore collection ${collection} of mongo dump ${bucket_path}"
-                rm $backup_name
-                exit 1
-            fi
-            echo ${i}
-        done
+    if [[ -n $COLLECTIONS ]]; then
+        local nsIncludes="($(echo ${COLLECTIONS} | sed "s/,/|/g"))"
+        eval $algo ${backup_name} | mongorestore --uri ${MONGO} --archive --nsInclude=${nsIncludes}
     else
-        # Decompress to stdout | mongorestore
-        algo="${algo} -c ${backup_name}"
-        eval $algo | mongorestore --uri ${MONGO} --archive
-        if [[ $? -ne 0 ]]; then
-            echo "Failed to restore mongo dump ${bucket_path}"
-            rm $archive_name
-            exit 1
-        fi
+        eval $algo ${backup_name} | mongorestore --uri ${MONGO} --archive
     fi
 
-    rm $archive_name
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to restore mongo dump ${bucket_path}"
+        rm $backup_name
+        exit 1
+    fi
+
+    rm $backup_name
     echo "finished restore"
 }
 

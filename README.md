@@ -20,7 +20,7 @@ Run the container with the following arguments `restore $TIMESTAMP $COLLECTIONS`
 |Argument|Format|Description|
 |--------|------|-----------|
 |TIMESTAMP|YYYY-MM-DDTHH-MM-SS (2019-01-01T12:42:04)|the date to restore the database from|
-|COLLECTIONS|DB/Collection,... (test/test,test/test2)|the collections you wish to restore into the database| 
+|COLLECTIONS|Collection,... (test/test,test/test2)|the collections you wish to restore into the database as a CSV string| 
 
 
 ### Environment Variables
