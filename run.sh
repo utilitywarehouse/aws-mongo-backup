@@ -52,36 +52,33 @@ fi
 
 
 function doBackup {
-
-    TIMESTAMP=`date +%Y-%m-%dT%H-%M-%S`
-    BACKUP_NAME="$TIMESTAMP.tar"
-    BUCKET_PATH="$BUCKET_PREFIX://$BUCKET/$BACKUP_NAME"
-
+    local timestamp=`date +%Y-%m-%dT%H-%M-%S`
+    local backup_name="${timestamp}"
     local algo=`echo $COMPRESSION | awk '{print tolower($0)}'`
     case $algo in
         gzip)
-            BACKUP_NAME="${BACKUP_NAME}.gz"
+            backup_name="${backup_name}.gz"
             ;;
         xz)
-            BACKUP_NAME="${BACKUP_NAME}.xz"
+            backup_name="${backup_name}.xz"
             algo="${algo} -zT0"
             ;;
         zstd)
-            BACKUP_NAME="${BACKUP_NAME}.zst"
+            backup_name="${backup_name}.zst"
             algo="zstd -zT0"
             ;;
         *)
-            BACKUP_NAME="${BACKUP_NAME}.gz"
+            backup_name="${backup_name}.gz"
             algo="gzip"
             ;;
     esac
-
-    echo "algo is: ${algo}"
+    
+    local bucket_path="$BUCKET_PREFIX://$BUCKET/$backup_name"
 
     ##
-    # Create a mongo dump to STDOUT, tar-ing & compressing. This allows us to save on intermidary pvc space.
+    # Create a mongo dump to STDOUT & compress. This allows us to save on intermidary pvc space.
     #
-    mongodump --uri ${MONGO} --archive | tar -cf - | eval $algo - > ${BACKUP_NAME}
+    mongodump --uri ${MONGO} --archive | eval $algo - > ${backup_name}
 
     if [[ $? -ne 0 ]];then
      echo "Failed to create mongo dump!"
@@ -91,75 +88,125 @@ function doBackup {
     ##
     # Move the backup to S3 or exit
     #
-    $UTIL cp $CRYPTO ${BACKUP_NAME} ${BUCKET_PATH}
+    $UTIL cp $CRYPTO ${backup_name} ${bucket_path}
 
     if [[ $? -ne 0 ]];then
-     echo "Failed to copy mongo dump to bucket ${BUCKET_PATH}"
-        rm ${BACKUP_NAME}
+     echo "Failed to copy mongo dump to bucket ${bucket_path}"
+        rm ${backup_name}
         exit 1
     fi
 
-    rm ${BACKUP_NAME}
+    rm ${backup_name}
     ##
     # Success
     #
-    echo "Successfully created backup ${BACKUP_NAME}, available at ${BUCKET_PATH}"
+    echo "Successfully created backup ${backup_name}, available at ${bucket_path}"
 }
 
 
 function doRestore {
-    BACKUP_NAME="${TIMESTAMP}.tar"
-    BUCKET_PATH="$BUCKET_PREFIX://$BUCKET/$BACKUP_NAME"
-    mkdir -p restore
+    local archive_name="${TIMESTAMP}"
+    local backup_name=${archive_name}
 
     local algo=`echo $COMPRESSION | awk '{print tolower($0)}'`
     case $algo in
         gzip)
-            BACKUP_NAME="${BACKUP_NAME}.gz"
-            algo="gzip -cd"
+            backup_name="${backup_name}.gz"
+            algo="gzip -d"
             ;;
         xz)
-            BACKUP_NAME="${BACKUP_NAME}.xz"
-            alg="${algo} -cd"
+            backup_name="${backup_name}.xz"
+            alg="${algo} -d"
             ;;
         zstd)
-            BACKUP_NAME="${BACKUP_NAME}.zst"
-            algo="${algo} -cd"
+            backup_name="${backup_name}.zst"
+            algo="${algo} -d"
             ;;
         *)
-            BACKUP_NAME="${BACKUP_NAME}.gz"
-            algo="gzip -cd"
+            backup_name="${backup_name}.gz"
+            algo="gzip -d"
             ;;
     esac
+    local bucket_path="$BUCKET_PREFIX://$BUCKET/$backup_name"
 
-    $UTIL cp ${BUCKET_PATH} ${BACKUP_NAME}
+    $UTIL cp ${bucket_path} ${backup_name}
     if [[ $? -ne 0 ]];then
-     echo "Failed to copy mongo dump from bucket ${BUCKET_PATH}"
+     echo "Failed to copy mongo dump from bucket ${bucket_path}"
         exit 1
     fi
 
-    # Decompress to stdout | untar
-    eval $algo | tar -xf - 
-    rm ${BACKUP_NAME}
+    if [[ -n "${COLLECTIONS}" ]]; then
+        # Decompress archive to disk - we might have multiple collections
+        algo="${algo} ${backup_name}"
+        eval $algo
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to decompress archive ${backup_name}"
+            rm $archive_name
+            exit 1
+        fi
+
+        for i in $(echo ${COLLECTIONS} | sed "s/,/ /g")
+        do
+            local collection=$(echo ${i} | awk -F "/" '{print $2}')
+            mongorestore --uri ${MONGO} -c ${collection} --archive=${archive_name}
+            if [[ $? -ne 0 ]]; then
+                echo "Failed to restore collection ${collection} of mongo dump ${bucket_path}"
+                rm $backup_name
+                exit 1
+            fi
+            echo ${i}
+        done
+    else
+        # Decompress to stdout | mongorestore
+        algo="${algo} -c ${backup_name}"
+        eval $algo | mongorestore --uri ${MONGO} --archive
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to restore mongo dump ${bucket_path}"
+            rm $archive_name
+            exit 1
+        fi
+    fi
+
+    rm $archive_name
+    echo "finished restore"
+}
+
+
+function doLegacyRestore {
+    local backup_name="${TIMESTAMP}.tar.gz"
+    local bucket_path="$BUCKET_PREFIX://$BUCKET/$backup_name"
+    mkdir restore
+
+    $UTIL cp $bucket_path $backup_name
+    if [[ $? -ne 0 ]];then
+     echo "Failed to copy mongo dump from bucket ${bucket_path}"
+        exit 1
+    fi
+
+    tar -zxvf $backup_name
+    rm $backup_name
 
     for i in $(echo ${COLLECTIONS} | sed "s/,/ /g")
     do
-        DATABASE=$(echo ${i} | awk -F "/" '{print $1}')
-        COLLECTION=$(echo ${i} | awk -F "/" '{print $2}')
-        mkdir -p restore/${DATABASE}
-        mv ${TIMESTAMP}/${i}.bson restore/${DATABASE}
-        mv ${TIMESTAMP}/${i}.metadata.json restore/${DATABASE}
+        local database=$(echo ${i} | awk -F "/" '{print $1}')
+        local collection=$(echo ${i} | awk -F "/" '{print $2}')
+
+        mkdir -p restore/$database
+        mv ${TIMESTAMP}/${i}.bson restore/$database
+        mv ${TIMESTAMP}/${i}.metadata.json restore/$database
         echo ${i}
     done
+
     rm -rf ${TIMESTAMP}
     mongorestore --uri ${MONGO} --dir restore
     if [[ $? -ne 0 ]];then
-     echo "Failed to restore mongo dump ${BUCKET_PATH}"
+     echo "Failed to restore mongo dump ${bucket_path}"
         rm -rf restore
         exit 1
     fi
     rm -rf restore
-    echo "finished restore"
+
+    echo "finished legacy restore"
 }
 
 
@@ -168,6 +215,11 @@ case $1 in
         TIMESTAMP=$2
         COLLECTIONS=$3
         doRestore
+    ;;
+    legacyRestore)
+        TIMESTAMP=$2
+        COLLECTIONS=$3
+        doLegacyRestore
     ;;
     *)
         doBackup

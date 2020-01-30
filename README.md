@@ -15,7 +15,7 @@ if you have large collections it is advised you mount a PVC to the following dir
 Run the container in your environment (typically on a cron) with the configured environment variables
 
 ### Restore
-Run the container with the following arguments `restore $TIMESTAMP $COLLECTIONS`
+Run the container with the following arguments `restore $TIMESTAMP $COLLECTIONS`. If you are restoring backups made prior to mongo-burs v1.4.0 use `legacyRestore` instead of _restore_; this is due to previous versions creating an archive of a mongo dump directory, rather than compressing an archive binary blob. Both commands take the same `$TIMESTAMP` and `$COLLECTIONS` args.
 
 |Argument|Format|Description|
 |--------|------|-----------|
