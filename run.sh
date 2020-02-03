@@ -110,19 +110,19 @@ function doRestore {
     case $algo in
         gzip)
             backup_name="${backup_name}.gz"
-            algo="gzip -d"
+            algo="gzip -cd"
             ;;
         xz)
             backup_name="${backup_name}.xz"
-            alg="${algo} -d"
+            alg="${algo} -cd"
             ;;
         zstd)
             backup_name="${backup_name}.zst"
-            algo="${algo} -d"
+            algo="${algo} -cd"
             ;;
         *)
             backup_name="${backup_name}.gz"
-            algo="gzip -d"
+            algo="gzip -cd"
             ;;
     esac
     local bucket_path="$BUCKET_PREFIX://$BUCKET/$backup_name"
@@ -133,13 +133,12 @@ function doRestore {
         exit 1
     fi
 
+    local nsIncludes=""
     if [[ -n $COLLECTIONS ]]; then
-        local nsIncludes="($(echo ${COLLECTIONS} | sed "s/,/|/g"))"
-        eval $algo ${backup_name} | mongorestore --uri ${MONGO} --archive --nsInclude=${nsIncludes}
-    else
-        eval $algo ${backup_name} | mongorestore --uri ${MONGO} --archive
+        nsIncludes="--nsInclude=\"$(echo ${COLLECTIONS} | sed "s/,/\" --nsInclude=\"/g")\""
     fi
 
+    eval $algo ${backup_name} | mongorestore --uri ${MONGO} --archive ${nsIncludes}
     if [[ $? -ne 0 ]]; then
         echo "Failed to restore mongo dump ${bucket_path}"
         rm $backup_name
