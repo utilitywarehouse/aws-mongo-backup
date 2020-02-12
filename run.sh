@@ -54,40 +54,22 @@ fi
 function doBackup {
 
     TIMESTAMP=`date +%Y-%m-%dT%H-%M-%S`
-    BACKUP_NAME="$TIMESTAMP.tar"
+    BACKUP_NAME="$TIMESTAMP.tar.gz"
     BUCKET_PATH="$BUCKET_PREFIX://$BUCKET/$BACKUP_NAME"
 
-    local algo=`echo $COMPRESSION | awk '{print tolower($0)}'`
-    case $algo in
-        gzip)
-            BACKUP_NAME="${BACKUP_NAME}.gz"
-            ;;
-        xz)
-            BACKUP_NAME="${BACKUP_NAME}.xz"
-            algo="${algo} -zT0"
-            ;;
-        zstd)
-            BACKUP_NAME="${BACKUP_NAME}.zst"
-            algo="zstd -zT0"
-            ;;
-        *)
-            BACKUP_NAME="${BACKUP_NAME}.gz"
-            algo="gzip"
-            ;;
-    esac
-
-    echo "algo is: ${algo}"
-
     ##
-    # Create a mongo dump to STDOUT, tar-ing & compressing. This allows us to save on intermidary pvc space.
+    # Create our mongo dump into a timestamped directory
     #
-    mongodump --uri ${MONGO} --archive | tar -cf - | eval $algo - > ${BACKUP_NAME}
+    mongodump --uri ${MONGO} -o ${TIMESTAMP}
 
     if [[ $? -ne 0 ]];then
      echo "Failed to create mongo dump!"
         exit 1
     fi
 
+    ## package up the lot into a tar.gz
+    tar -zcvf ${BACKUP_NAME} ${TIMESTAMP}
+    rm -rf ${TIMESTAMP}
     ##
     # Move the backup to S3 or exit
     #
@@ -108,38 +90,16 @@ function doBackup {
 
 
 function doRestore {
-    BACKUP_NAME="${TIMESTAMP}.tar"
+    BACKUP_NAME="${TIMESTAMP}.tar.gz"
     BUCKET_PATH="$BUCKET_PREFIX://$BUCKET/$BACKUP_NAME"
     mkdir -p restore
-
-    local algo=`echo $COMPRESSION | awk '{print tolower($0)}'`
-    case $algo in
-        gzip)
-            BACKUP_NAME="${BACKUP_NAME}.gz"
-            algo="gzip -cd"
-            ;;
-        xz)
-            BACKUP_NAME="${BACKUP_NAME}.xz"
-            alg="${algo} -cd"
-            ;;
-        zstd)
-            BACKUP_NAME="${BACKUP_NAME}.zst"
-            algo="${algo} -cd"
-            ;;
-        *)
-            BACKUP_NAME="${BACKUP_NAME}.gz"
-            algo="gzip -cd"
-            ;;
-    esac
 
     $UTIL cp ${BUCKET_PATH} ${BACKUP_NAME}
     if [[ $? -ne 0 ]];then
      echo "Failed to copy mongo dump from bucket ${BUCKET_PATH}"
         exit 1
     fi
-
-    # Decompress to stdout | untar
-    eval $algo | tar -xf - 
+    tar -xzvf ${BACKUP_NAME}
     rm ${BACKUP_NAME}
 
     for i in $(echo ${COLLECTIONS} | sed "s/,/ /g")
