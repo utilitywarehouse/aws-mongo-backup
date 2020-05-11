@@ -130,6 +130,7 @@ case $1 in
         doRestore
     ;;
     *)
+        rm *
         doBackup
     ;;
 esac
